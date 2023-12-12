@@ -2,6 +2,7 @@ use std::error::Error;
 use std::process;
 use std::env;
 
+use chrono::Datelike;
 use windows::Win32::System::SystemInformation::*;
 use serde::Deserialize;
 use chrono::{ NaiveDateTime, Timelike };
@@ -53,6 +54,9 @@ fn set_web_time() -> Result<(), Box<dyn Error>> {
 fn set_windows_system_time(date_time: NaiveDateTime) -> Result<(), Box<dyn Error>> {
     unsafe {
         let mut lt = GetLocalTime();
+        lt.wDay = date_time.day() as u16;
+        lt.wMonth = date_time.month() as u16;
+        lt.wYear = date_time.year() as u16;
         lt.wHour = date_time.hour() as u16;
         lt.wMinute = date_time.minute() as u16;
         lt.wSecond = date_time.second() as u16;

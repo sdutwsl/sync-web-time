@@ -1,37 +1,72 @@
+use std::error::Error;
+use std::process;
+use std::env;
+
 use windows::Win32::System::SystemInformation::*;
 use serde::Deserialize;
 use chrono::{ NaiveDateTime, Timelike };
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 struct WebTime {
     #[serde(rename = "sysTime1")]
-    sys_time1: String,
+    _sys_time1: String,
     #[serde(rename = "sysTime2")]
     sys_time2: String,
 }
 
 fn main() {
-    let body = reqwest::blocking
-        ::get("https://quan.suning.com/getSysTime.do")
-        .expect("Failed to get internet time.");
-    println!("Internet time acquired, raw response:\n {:#?}", body);
-
-    let web_time: WebTime = body.json().expect("Failed to parse json.");
-    println!("JSON time parsed, timestamp: {} ,time: {}", web_time.sys_time1, web_time.sys_time2);
-
-    let data_time: NaiveDateTime = NaiveDateTime::parse_from_str(
-        &web_time.sys_time2,
-        "%Y-%m-%d %H:%M:%S"
-    ).expect("Failed to parse time.");
-    println!("Time object generated: {:#?}", data_time);
-
-    unsafe {
-        let mut lt = GetLocalTime();
-        lt.wHour = data_time.hour() as u16;
-        lt.wMinute = data_time.minute() as u16;
-        lt.wSecond = data_time.second() as u16;
-        SetLocalTime(&lt).expect("Feailed to set time.");
+    let args: Vec<String> = env::args().collect();
+    let result;
+    if args.len() == 1 {
+        result = set_web_time();
+    } else if args.len() == 2 {
+        result = set_argument_time();
+    } else {
+        println!("To many arguments.");
+        result = Ok(());
     }
 
-    println!("System time sync!")
+    match result {
+        Ok(_) => { println!("Time set successful.") }
+        Err(e) => {
+            error_handler(e);
+        }
+    }
+}
+
+fn set_argument_time() -> Result<(), Box<dyn Error>> {
+    let args = env::args().collect::<Vec<String>>();
+    set_windows_system_time(NaiveDateTime::parse_from_str(&args[1], "%Y-%m-%d %H:%M:%S")?)?;
+    Ok(())
+}
+
+fn error_handler(err: Box<dyn Error>) {
+    println!("Some error occured: {:#?}", err);
+    process::exit(0);
+}
+
+fn set_web_time() -> Result<(), Box<dyn Error>> {
+    set_windows_system_time(fetch_web_time()?)?;
+    Ok(())
+}
+
+fn set_windows_system_time(date_time: NaiveDateTime) -> Result<(), Box<dyn Error>> {
+    unsafe {
+        let mut lt = GetLocalTime();
+        lt.wHour = date_time.hour() as u16;
+        lt.wMinute = date_time.minute() as u16;
+        lt.wSecond = date_time.second() as u16;
+        SetLocalTime(&lt)?;
+    }
+    Ok(())
+}
+
+fn fetch_web_time() -> Result<NaiveDateTime, Box<dyn Error>> {
+    let body = reqwest::blocking::get("https://quan.suning.com/getSysTime.do")?;
+    let web_time: WebTime = body.json()?;
+    let date_time: NaiveDateTime = NaiveDateTime::parse_from_str(
+        &web_time.sys_time2,
+        "%Y-%m-%d %H:%M:%S"
+    )?;
+    Ok(date_time)
 }

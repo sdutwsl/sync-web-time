@@ -1,5 +1,5 @@
 # Description
-A simple tool that synchronizes the web time in UTC(+8) for Windows from a website.
+A simple tool that synchronizes the web time in UTC(+8) for Windows from a website or a command line argument.
 
 # Usage
 ```
